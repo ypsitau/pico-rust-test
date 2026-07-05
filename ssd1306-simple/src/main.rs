@@ -22,7 +22,7 @@ use ssd1306::{I2CDisplayInterface, Ssd1306Async, prelude::*};
 
 // Embedded Graphics
 use embedded_graphics::{
-    mono_font::{MonoTextStyleBuilder, ascii::FONT_6X10},
+    mono_font::{MonoTextStyleBuilder, ascii::FONT_10X20},
     pixelcolor::BinaryColor,
     prelude::Point,
     prelude::*,
@@ -62,7 +62,7 @@ async fn main(_spawner: Spawner) {
         .expect("failed to initialize the display");
 
     let text_style = MonoTextStyleBuilder::new()
-        .font(&FONT_6X10)
+        .font(&FONT_10X20)
         .text_color(BinaryColor::On)
         .build();
 
@@ -82,7 +82,8 @@ async fn main(_spawner: Spawner) {
         .expect("failed to flush data to display");
 
     loop {
-        Timer::after_millis(100).await;
+        defmt::info!("Hello, Rust!");
+        Timer::after_millis(1000).await;
     }
 }
 
