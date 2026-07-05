@@ -1,0 +1,45 @@
+
+[package]
+edition = "2024"
+name = "rusttest1"
+version = "0.1.0"
+license = "MIT or Apache-2.0"
+
+[build-dependencies]
+regex = "1.11.0"
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+defmt = "1"
+defmt-rtt = "1"
+
+embassy-executor = { version = "0.9", features = [
+  "arch-cortex-m",
+  "executor-thread",
+  "defmt",
+] }
+embassy-time = { version = "0.5.0" }
+embassy-rp = { version = "0.9.0", features = [
+  "time-driver",
+  "critical-section-impl",
+  "rp235xa",
+  "binary-info",
+  "defmt",
+] }
+
+[target.'cfg( target_arch = "arm" )'.dependencies]
+panic-probe = { version = "1", features = ["print-defmt"] }
+
+[target.'cfg( target_arch = "riscv32" )'.dependencies]
+panic-halt = { version = "1.0.0" }
+
+[target.thumbv6m-none-eabi.dependencies]
+rp2040-boot2 = "0.3"
+rp2040-hal = { version = "0.11", features = ["rt", "critical-section-impl"] }
+
+[target.riscv32imac-unknown-none-elf.dependencies]
+rp235x-hal = { version = "0.3", features = ["rt", "critical-section-impl"] }
+
+[target."thumbv8m.main-none-eabihf".dependencies]
+rp235x-hal = { version = "0.3", features = ["rt", "critical-section-impl"] }
