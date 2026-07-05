@@ -1,7 +1,7 @@
 
 [package]
 edition = "2024"
-name = "rusttest1"
+name = "pwm-on-led"
 version = "0.1.0"
 license = "MIT or Apache-2.0"
 
