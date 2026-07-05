@@ -92,7 +92,7 @@ async fn main(_spawner: Spawner) {
 #[unsafe(link_section = ".bi_entries")]
 #[used]
 pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
-    embassy_rp::binary_info::rp_program_name!(c"hello-oled"),
+    embassy_rp::binary_info::rp_program_name!(c"ssd1306-simple"),
     embassy_rp::binary_info::rp_program_description!(c"Hello OLED"),
     embassy_rp::binary_info::rp_cargo_version!(),
     embassy_rp::binary_info::rp_program_build_attribute!(),
