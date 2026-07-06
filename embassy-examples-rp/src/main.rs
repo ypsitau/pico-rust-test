@@ -51,15 +51,19 @@ async fn main(_spawner: Spawner) {
     let touch_cs = p.PIN_16;
     //let touch_irq = p.PIN_17;
 
-    let mut touch_config = spi::Config::default();
-    touch_config.frequency = TOUCH_FREQ;
-    touch_config.phase = spi::Phase::CaptureOnSecondTransition;
-    touch_config.polarity = spi::Polarity::IdleHigh;
-    let spi = Spi::new_blocking(p.SPI1, clk, mosi, miso, touch_config.clone());
-    let spi_bus: Mutex<NoopRawMutex, _> = Mutex::new(RefCell::new(spi));
-    let touch_spi = SpiDeviceWithConfig::new(&spi_bus, Output::new(touch_cs, Level::High), touch_config);
-    let mut touch = Touch::new(touch_spi);
-
+    let spi_bus;
+    let mut touch = {
+        let mut touch_config = spi::Config::default();
+        touch_config.frequency = TOUCH_FREQ;
+        touch_config.phase = spi::Phase::CaptureOnSecondTransition;
+        touch_config.polarity = spi::Polarity::IdleHigh;
+        let spi = Spi::new_blocking(p.SPI1, clk, mosi, miso, touch_config.clone());
+        spi_bus = Mutex::<NoopRawMutex, _>::new(RefCell::new(spi));
+        let touch_spi = {
+            SpiDeviceWithConfig::new(&spi_bus, Output::new(touch_cs, Level::High), touch_config)
+        };
+        Touch::new(touch_spi)
+    };
     let _bl = Output::new(bl, Level::High);
 
     let mut display = {
