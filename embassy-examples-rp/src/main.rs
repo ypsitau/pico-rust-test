@@ -52,10 +52,7 @@ async fn main(_spawner: Spawner) {
     //let touch_irq = p.PIN_17;
 
     // create SPI
-    let mut display_config = spi::Config::default();
-    display_config.frequency = DISPLAY_FREQ;
-    display_config.phase = spi::Phase::CaptureOnSecondTransition;
-    display_config.polarity = spi::Polarity::IdleHigh;
+
     let mut touch_config = spi::Config::default();
     touch_config.frequency = TOUCH_FREQ;
     touch_config.phase = spi::Phase::CaptureOnSecondTransition;
@@ -64,7 +61,14 @@ async fn main(_spawner: Spawner) {
     let spi = Spi::new_blocking(p.SPI1, clk, mosi, miso, touch_config.clone());
     let spi_bus: Mutex<NoopRawMutex, _> = Mutex::new(RefCell::new(spi));
 
-    let display_spi = SpiDeviceWithConfig::new(&spi_bus, Output::new(display_cs, Level::High), display_config);
+    let display_spi = {
+        let mut display_config = spi::Config::default();
+        display_config.frequency = DISPLAY_FREQ;
+        display_config.phase = spi::Phase::CaptureOnSecondTransition;
+        display_config.polarity = spi::Polarity::IdleHigh;
+        SpiDeviceWithConfig::new(&spi_bus, Output::new(display_cs, Level::High), display_config)
+    };
+
     let touch_spi = SpiDeviceWithConfig::new(&spi_bus, Output::new(touch_cs, Level::High), touch_config);
 
     let mut touch = Touch::new(touch_spi);
