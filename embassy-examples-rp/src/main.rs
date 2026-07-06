@@ -51,63 +51,51 @@ async fn main(_spawner: Spawner) {
     let touch_cs = p.PIN_16;
     //let touch_irq = p.PIN_17;
 
-    // create SPI
-
     let mut touch_config = spi::Config::default();
     touch_config.frequency = TOUCH_FREQ;
     touch_config.phase = spi::Phase::CaptureOnSecondTransition;
     touch_config.polarity = spi::Polarity::IdleHigh;
-
     let spi = Spi::new_blocking(p.SPI1, clk, mosi, miso, touch_config.clone());
     let spi_bus: Mutex<NoopRawMutex, _> = Mutex::new(RefCell::new(spi));
-
-    let display_spi = {
-        let mut display_config = spi::Config::default();
-        display_config.frequency = DISPLAY_FREQ;
-        display_config.phase = spi::Phase::CaptureOnSecondTransition;
-        display_config.polarity = spi::Polarity::IdleHigh;
-        SpiDeviceWithConfig::new(&spi_bus, Output::new(display_cs, Level::High), display_config)
-    };
-
     let touch_spi = SpiDeviceWithConfig::new(&spi_bus, Output::new(touch_cs, Level::High), touch_config);
-
     let mut touch = Touch::new(touch_spi);
 
-    let dcx = Output::new(dcx, Level::Low);
-    let rst = Output::new(rst, Level::Low);
-    // dcx: 0 = command, 1 = data
-
-    // Enable LCD backlight
     let _bl = Output::new(bl, Level::High);
 
-    // display interface abstraction from SPI and DC
-    let di = SPIInterface::new(display_spi, dcx);
-
-    // Define the display from the display interface and initialize it
-    //let mut display = Builder::new(ST7789, di)
-    let mut display = Builder::new(DisplayModel, di)
-        .display_size(240, 320)
-        .reset_pin(rst)
-        .orientation(Orientation::new().rotate(Rotation::Deg90))
-        .init(&mut Delay)
-        .unwrap();
+    let mut display = {
+        let dcx = Output::new(dcx, Level::Low);
+        let rst = Output::new(rst, Level::Low);
+        let display_spi = {
+            let mut display_config = spi::Config::default();
+            display_config.frequency = DISPLAY_FREQ;
+            display_config.phase = spi::Phase::CaptureOnSecondTransition;
+            display_config.polarity = spi::Polarity::IdleHigh;
+            SpiDeviceWithConfig::new(&spi_bus, Output::new(display_cs, Level::High), display_config)
+        };
+        let di = SPIInterface::new(display_spi, dcx);
+        Builder::new(DisplayModel, di)
+            .display_size(240, 320)
+            .reset_pin(rst)
+            .orientation(Orientation::new().rotate(Rotation::Deg90))
+            .init(&mut Delay)
+            .unwrap()
+    };
     display.clear(Rgb565::BLACK).unwrap();
+    {
+        let raw_image_data = ImageRawLE::new(include_bytes!("../assets/ferris.raw"), 86);
+        let ferris = Image::new(&raw_image_data, Point::new(34, 68));
 
-    let raw_image_data = ImageRawLE::new(include_bytes!("../assets/ferris.raw"), 86);
-    let ferris = Image::new(&raw_image_data, Point::new(34, 68));
-
-    // Display the image
-    ferris.draw(&mut display).unwrap();
-
-    let style = MonoTextStyle::new(&FONT_10X20, Rgb565::GREEN);
-    Text::new(
-        "Hello embedded_graphics \n + embassy + RP2040!",
-        Point::new(20, 200),
-        style,
-    )
-    .draw(&mut display)
-    .unwrap();
-
+        // Display the image
+        ferris.draw(&mut display).unwrap();
+    }
+    {
+        let style = MonoTextStyle::new(&FONT_10X20, Rgb565::GREEN);
+        Text::new(
+            "Hello embedded_graphics \n + embassy + RP2040!",
+            Point::new(20, 200),
+            style,
+        ).draw(&mut display).unwrap();
+    }
     loop {
         if let Some((x, y)) = touch.read() {
             let style = PrimitiveStyleBuilder::new().fill_color(Rgb565::BLUE).build();
