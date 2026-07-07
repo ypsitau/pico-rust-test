@@ -34,16 +34,15 @@ const FREQ_TOUCH: u32 = 200_000;
 async fn main(_spawner: embassy_executor::Spawner) {
     let p = embassy_rp::init(Default::default());
     info!("Hello World!");
-
-    let spi_clk = p.PIN_10;
-    let spi_mosi = p.PIN_11;
-    let spi_miso = p.PIN_12;
+    let spi_clk     = p.PIN_10;
+    let spi_mosi    = p.PIN_11;
+    let spi_miso    = p.PIN_12;
     let display_rst = p.PIN_6;
     let display_dcx = p.PIN_7;
-    let display_cs = p.PIN_8;
-    let display_bl = p.PIN_9;
-    let touch_cs = p.PIN_14;
-    let _touch_irq = p.PIN_15;
+    let display_cs  = p.PIN_8;
+    let display_bl  = p.PIN_9;
+    let touch_cs    = p.PIN_14;
+    let _touch_irq  = p.PIN_15;
 
     let spi_bus_shared = {
         let spi_bus = embassy_rp::spi::Spi::new_blocking(p.SPI1, spi_clk, spi_mosi, spi_miso, Default::default());
