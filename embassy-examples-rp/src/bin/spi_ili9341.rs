@@ -11,13 +11,8 @@ use core::cell::RefCell;
 use defmt::*;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDeviceWithConfig;
 use embassy_rp::gpio;
-use embedded_graphics::image::{Image, ImageRawLE};
-use embedded_graphics::mono_font::MonoTextStyle;
-use embedded_graphics::mono_font::ascii::FONT_10X20;
-use embedded_graphics::pixelcolor;
-use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{PrimitiveStyleBuilder, Rectangle};
-use embedded_graphics::text::Text;
+use embedded_graphics as eg;
+use eg::prelude::*;
 use mipidsi::options::{Orientation, Rotation};
 use {defmt_rtt as _, panic_probe as _};
 
@@ -38,7 +33,7 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let pin_spi_mosi    = p.PIN_11;
     let pin_spi_miso    = p.PIN_12;
     let pin_display_rst = p.PIN_6;
-    let pin_display_dc = p.PIN_7;
+    let pin_display_dc  = p.PIN_7;
     let pin_display_cs  = p.PIN_8;
     let pin_display_bl  = p.PIN_9;
     let pin_touch_cs    = p.PIN_14;
@@ -81,15 +76,15 @@ async fn main(_spawner: embassy_executor::Spawner) {
 
     };
     let _gpio_bl = gpio::Output::new(pin_display_bl, gpio::Level::High);
-    display.clear(pixelcolor::Rgb565::BLACK).unwrap();
+    display.clear(eg::pixelcolor::Rgb565::BLACK).unwrap();
     {
-        let raw_image_data = ImageRawLE::new(include_bytes!("../../assets/ferris.raw"), 86);
-        let ferris = Image::new(&raw_image_data, Point::new(34, 68));
+        let raw_image_data = eg::image::ImageRawLE::new(include_bytes!("../../assets/ferris.raw"), 86);
+        let ferris = eg::image::Image::new(&raw_image_data, Point::new(34, 68));
         ferris.draw(&mut display).unwrap();
     }
     {
-        let style = MonoTextStyle::new(&FONT_10X20, pixelcolor::Rgb565::GREEN);
-        Text::new(
+        let style = eg::mono_font::MonoTextStyle::new(&eg::mono_font::ascii::FONT_10X20, eg::pixelcolor::Rgb565::GREEN);
+        eg::text::Text::new(
             "Hello embedded_graphics \n + embassy + RP2040!",
             Point::new(20, 200),
             style,
@@ -97,9 +92,9 @@ async fn main(_spawner: embassy_executor::Spawner) {
     }
     loop {
         if let Some((x, y)) = touch.read() {
-            let style = PrimitiveStyleBuilder::new().fill_color(pixelcolor::Rgb565::BLUE).build();
+            let style = eg::primitives::PrimitiveStyleBuilder::new().fill_color(eg::pixelcolor::Rgb565::BLUE).build();
 
-            Rectangle::new(Point::new(x - 1, y - 1), Size::new(3, 3))
+            eg::primitives::Rectangle::new(Point::new(x - 1, y - 1), Size::new(3, 3))
                 .into_styled(style)
                 .draw(&mut display)
                 .unwrap();
