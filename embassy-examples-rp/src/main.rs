@@ -12,9 +12,8 @@ use defmt::*;
 use display_interface_spi::SPIInterface;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDeviceWithConfig;
 use embassy_executor::Spawner;
-use embassy_rp::gpio::{Level, Output};
 use embassy_rp::spi;
-use embassy_rp::spi::Spi;
+use embassy_rp::gpio;
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_time::Delay;
@@ -25,7 +24,6 @@ use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{PrimitiveStyleBuilder, Rectangle};
 use embedded_graphics::text::Text;
-use mipidsi::Builder;
 use mipidsi::models::ST7789 as DisplayModel;
 //use mipidsi::models::ILI9341Rgb565 as DisplayModel;
 use mipidsi::options::{Orientation, Rotation};
@@ -33,8 +31,12 @@ use {defmt_rtt as _, panic_probe as _};
 
 use crate::touch::Touch;
 
-const DISPLAY_FREQ: u32 = 64_000_000;
-const TOUCH_FREQ: u32 = 200_000;
+embassy_rp::bind_interrupts!(struct Irqs {
+    DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<embassy_rp::peripherals::DMA_CH0>, embassy_rp::dma::InterruptHandler<embassy_rp::peripherals::DMA_CH1>;
+});
+
+const FREQ_DISPLAY: u32 = 64_000_000;
+const FREQ_TOUCH: u32 = 200_000;
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
@@ -51,39 +53,40 @@ async fn main(_spawner: Spawner) {
     let touch_cs = p.PIN_16;
     //let touch_irq = p.PIN_17;
 
-    let spi_bus;
+    let spi_bus = {
+        let spi = spi::Spi::new_blocking(p.SPI1, clk, mosi, miso, Default::default());
+        //let spi = spi::Spi::new(p.SPI1, clk, mosi, miso, p.DMA_CH0, p.DMA_CH1, Irqs, Default::default());
+        Mutex::<NoopRawMutex, _>::new(RefCell::new(spi))
+    };
     let mut touch = {
-        let mut touch_config = spi::Config::default();
-        touch_config.frequency = TOUCH_FREQ;
-        touch_config.phase = spi::Phase::CaptureOnSecondTransition;
-        touch_config.polarity = spi::Polarity::IdleHigh;
-        let spi = Spi::new_blocking(p.SPI1, clk, mosi, miso, touch_config.clone());
-        spi_bus = Mutex::<NoopRawMutex, _>::new(RefCell::new(spi));
         let touch_spi = {
-            SpiDeviceWithConfig::new(&spi_bus, Output::new(touch_cs, Level::High), touch_config)
+            let mut config = spi::Config::default();
+            config.frequency = FREQ_TOUCH;
+            config.phase = spi::Phase::CaptureOnSecondTransition;
+            config.polarity = spi::Polarity::IdleHigh;
+            SpiDeviceWithConfig::new(&spi_bus, gpio::Output::new(touch_cs, gpio::Level::High), config)
         };
         Touch::new(touch_spi)
     };
-    let _bl = Output::new(bl, Level::High);
-
     let mut display = {
-        let dcx = Output::new(dcx, Level::Low);
-        let rst = Output::new(rst, Level::Low);
+        let dcx = gpio::Output::new(dcx, gpio::Level::Low);
+        let rst = gpio::Output::new(rst, gpio::Level::Low);
         let display_spi = {
-            let mut display_config = spi::Config::default();
-            display_config.frequency = DISPLAY_FREQ;
-            display_config.phase = spi::Phase::CaptureOnSecondTransition;
-            display_config.polarity = spi::Polarity::IdleHigh;
-            SpiDeviceWithConfig::new(&spi_bus, Output::new(display_cs, Level::High), display_config)
+            let mut config = spi::Config::default();
+            config.frequency = FREQ_DISPLAY;
+            config.phase = spi::Phase::CaptureOnSecondTransition;
+            config.polarity = spi::Polarity::IdleHigh;
+            SpiDeviceWithConfig::new(&spi_bus, gpio::Output::new(display_cs, gpio::Level::High), config)
         };
         let di = SPIInterface::new(display_spi, dcx);
-        Builder::new(DisplayModel, di)
+        mipidsi::Builder::new(DisplayModel, di)
             .display_size(240, 320)
             .reset_pin(rst)
             .orientation(Orientation::new().rotate(Rotation::Deg90))
             .init(&mut Delay)
             .unwrap()
     };
+    let _bl = gpio::Output::new(bl, gpio::Level::High);
     display.clear(Rgb565::BLACK).unwrap();
     {
         let raw_image_data = ImageRawLE::new(include_bytes!("../assets/ferris.raw"), 86);
