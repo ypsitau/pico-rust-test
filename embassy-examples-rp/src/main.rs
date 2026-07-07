@@ -9,27 +9,19 @@
 use core::cell::RefCell;
 
 use defmt::*;
-use display_interface_spi::SPIInterface;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDeviceWithConfig;
-use embassy_executor::Spawner;
-use embassy_rp::spi;
 use embassy_rp::gpio;
-use embassy_sync::blocking_mutex::Mutex;
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
-use embassy_time::Delay;
 use embedded_graphics::image::{Image, ImageRawLE};
 use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::mono_font::ascii::FONT_10X20;
-use embedded_graphics::pixelcolor::Rgb565;
+use embedded_graphics::pixelcolor;
 use embedded_graphics::prelude::*;
 use embedded_graphics::primitives::{PrimitiveStyleBuilder, Rectangle};
 use embedded_graphics::text::Text;
-use mipidsi::models::ST7789 as DisplayModel;
-//use mipidsi::models::ILI9341Rgb565 as DisplayModel;
 use mipidsi::options::{Orientation, Rotation};
 use {defmt_rtt as _, panic_probe as _};
 
-use crate::touch::Touch;
+use crate::touch_xpt2046::Touch;
 
 embassy_rp::bind_interrupts!(struct Irqs {
     DMA_IRQ_0 => embassy_rp::dma::InterruptHandler<embassy_rp::peripherals::DMA_CH0>, embassy_rp::dma::InterruptHandler<embassy_rp::peripherals::DMA_CH1>;
@@ -39,64 +31,65 @@ const FREQ_DISPLAY: u32 = 64_000_000;
 const FREQ_TOUCH: u32 = 200_000;
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(_spawner: embassy_executor::Spawner) {
     let p = embassy_rp::init(Default::default());
     info!("Hello World!");
 
-    let rst = p.PIN_10;
-    let dcx = p.PIN_11;
-    let display_cs = p.PIN_12;
-    let bl = p.PIN_13;
-    let miso = p.PIN_8;
-    let clk = p.PIN_14;
-    let mosi = p.PIN_15;
-    let touch_cs = p.PIN_16;
-    //let touch_irq = p.PIN_17;
+    let spi_clk = p.PIN_10;
+    let spi_mosi = p.PIN_11;
+    let spi_miso = p.PIN_12;
+    let display_rst = p.PIN_6;
+    let display_dcx = p.PIN_7;
+    let display_cs = p.PIN_8;
+    let display_bl = p.PIN_9;
+    let touch_cs = p.PIN_14;
+    let _touch_irq = p.PIN_15;
 
-    let spi_bus = {
-        let spi = spi::Spi::new_blocking(p.SPI1, clk, mosi, miso, Default::default());
-        //let spi = spi::Spi::new(p.SPI1, clk, mosi, miso, p.DMA_CH0, p.DMA_CH1, Irqs, Default::default());
-        Mutex::<NoopRawMutex, _>::new(RefCell::new(spi))
+    let spi_bus_shared = {
+        let spi_bus = embassy_rp::spi::Spi::new_blocking(p.SPI1, spi_clk, spi_mosi, spi_miso, Default::default());
+        //let spi_bus = embassy_rp::spi::Spi::new(p.SPI1, clk, mosi, miso, p.DMA_CH0, p.DMA_CH1, Irqs, Default::default());
+        embassy_sync::blocking_mutex::Mutex::<embassy_sync::blocking_mutex::raw::NoopRawMutex, _>::new(RefCell::new(spi_bus))
     };
     let mut touch = {
-        let touch_spi = {
-            let mut config = spi::Config::default();
+        let spi_device = {
+            let mut config = embassy_rp::spi::Config::default();
             config.frequency = FREQ_TOUCH;
-            config.phase = spi::Phase::CaptureOnSecondTransition;
-            config.polarity = spi::Polarity::IdleHigh;
-            SpiDeviceWithConfig::new(&spi_bus, gpio::Output::new(touch_cs, gpio::Level::High), config)
+            config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+            config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+            SpiDeviceWithConfig::new(&spi_bus_shared, gpio::Output::new(touch_cs, gpio::Level::High), config)
         };
-        Touch::new(touch_spi)
+        Touch::new(spi_device)
     };
     let mut display = {
-        let dcx = gpio::Output::new(dcx, gpio::Level::Low);
-        let rst = gpio::Output::new(rst, gpio::Level::Low);
-        let display_spi = {
-            let mut config = spi::Config::default();
+        let dcx = gpio::Output::new(display_dcx, gpio::Level::Low);
+        let rst = gpio::Output::new(display_rst, gpio::Level::Low);
+        let spi_device = {
+            let mut config = embassy_rp::spi::Config::default();
             config.frequency = FREQ_DISPLAY;
-            config.phase = spi::Phase::CaptureOnSecondTransition;
-            config.polarity = spi::Polarity::IdleHigh;
-            SpiDeviceWithConfig::new(&spi_bus, gpio::Output::new(display_cs, gpio::Level::High), config)
+            config.phase = embassy_rp::spi::Phase::CaptureOnSecondTransition;
+            config.polarity = embassy_rp::spi::Polarity::IdleHigh;
+            SpiDeviceWithConfig::new(&spi_bus_shared, gpio::Output::new(display_cs, gpio::Level::High), config)
         };
-        let di = SPIInterface::new(display_spi, dcx);
-        mipidsi::Builder::new(DisplayModel, di)
+        let display_interface = display_interface_spi::SPIInterface::new(spi_device, dcx);
+        //use mipidsi::models::ST7789 as DisplayModel;
+        use mipidsi::models::ILI9341Rgb565 as DisplayModel;
+        mipidsi::Builder::new(DisplayModel, display_interface)
             .display_size(240, 320)
             .reset_pin(rst)
-            .orientation(Orientation::new().rotate(Rotation::Deg90))
-            .init(&mut Delay)
+            .orientation(Orientation::new().rotate(Rotation::Deg90).flip_horizontal())
+            .init(&mut embassy_time::Delay)
             .unwrap()
+
     };
-    let _bl = gpio::Output::new(bl, gpio::Level::High);
-    display.clear(Rgb565::BLACK).unwrap();
+    let _bl = gpio::Output::new(display_bl, gpio::Level::High);
+    display.clear(pixelcolor::Rgb565::BLACK).unwrap();
     {
         let raw_image_data = ImageRawLE::new(include_bytes!("../assets/ferris.raw"), 86);
         let ferris = Image::new(&raw_image_data, Point::new(34, 68));
-
-        // Display the image
         ferris.draw(&mut display).unwrap();
     }
     {
-        let style = MonoTextStyle::new(&FONT_10X20, Rgb565::GREEN);
+        let style = MonoTextStyle::new(&FONT_10X20, pixelcolor::Rgb565::GREEN);
         Text::new(
             "Hello embedded_graphics \n + embassy + RP2040!",
             Point::new(20, 200),
@@ -105,7 +98,7 @@ async fn main(_spawner: Spawner) {
     }
     loop {
         if let Some((x, y)) = touch.read() {
-            let style = PrimitiveStyleBuilder::new().fill_color(Rgb565::BLUE).build();
+            let style = PrimitiveStyleBuilder::new().fill_color(pixelcolor::Rgb565::BLUE).build();
 
             Rectangle::new(Point::new(x - 1, y - 1), Size::new(3, 3))
                 .into_styled(style)
@@ -116,58 +109,52 @@ async fn main(_spawner: Spawner) {
 }
 
 /// Driver for the XPT2046 resistive touchscreen sensor
-mod touch {
+mod touch_xpt2046 {
     use embedded_hal_1::spi::{Operation, SpiDevice};
+    //use embedded_hal_async::spi::{Operation, SpiDevice};
 
     struct Calibration {
-        x1: i32,
-        x2: i32,
-        y1: i32,
-        y2: i32,
-        sx: i32,
-        sy: i32,
+        xraw_max: i32,
+        xraw_min: i32,
+        yraw_min: i32,
+        yraw_max: i32,
+        x_range: i32,
+        y_range: i32,
     }
 
     const CALIBRATION: Calibration = Calibration {
-        x1: 3880,
-        x2: 340,
-        y1: 262,
-        y2: 3850,
-        sx: 320,
-        sy: 240,
+        xraw_min: 340,
+        xraw_max: 3880,
+        yraw_min: 262,
+        yraw_max: 3850,
+        x_range: 320,
+        y_range: 240,
     };
 
     pub struct Touch<SPI: SpiDevice> {
         spi: SPI,
     }
 
-    impl<SPI> Touch<SPI>
-    where
-        SPI: SpiDevice,
-    {
+    impl<SPI: SpiDevice> Touch<SPI> {
         pub fn new(spi: SPI) -> Self {
             Self { spi }
         }
 
         pub fn read(&mut self) -> Option<(i32, i32)> {
-            let mut x = [0; 2];
-            let mut y = [0; 2];
+            let mut xbytes = [0u8; 2];
+            let mut ybytes = [0u8; 2];
             self.spi
                 .transaction(&mut [
                     Operation::Write(&[0x90]),
-                    Operation::Read(&mut x),
+                    Operation::Read(&mut xbytes),
                     Operation::Write(&[0xd0]),
-                    Operation::Read(&mut y),
-                ])
-                .unwrap();
-
-            let x = (u16::from_be_bytes(x) >> 3) as i32;
-            let y = (u16::from_be_bytes(y) >> 3) as i32;
-
+                    Operation::Read(&mut ybytes),
+                ]).unwrap();
+            let xraw = (u16::from_be_bytes(xbytes) >> 3) as i32;
+            let yraw = (u16::from_be_bytes(ybytes) >> 3) as i32;
             let cal = &CALIBRATION;
-
-            let x = ((x - cal.x1) * cal.sx / (cal.x2 - cal.x1)).clamp(0, cal.sx);
-            let y = ((y - cal.y1) * cal.sy / (cal.y2 - cal.y1)).clamp(0, cal.sy);
+            let x = ((xraw - cal.xraw_min) * cal.x_range / (cal.xraw_max - cal.xraw_min)).clamp(0, cal.x_range);
+            let y = ((yraw - cal.yraw_min) * cal.y_range / (cal.yraw_max - cal.yraw_min)).clamp(0, cal.y_range);
             if x == 0 && y == 0 { None } else { Some((x, y)) }
         }
     }
