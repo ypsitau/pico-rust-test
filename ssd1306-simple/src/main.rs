@@ -3,15 +3,8 @@
 
 use core::fmt::Write;
 use embassy_executor::Spawner;
-use embassy_rp::i2c::{Config as I2cConfig, I2c};
-use embassy_rp::peripherals::I2C0;
-use embassy_rp::{bind_interrupts, i2c};
+use embassy_rp::{bind_interrupts, i2c, peripherals};
 use embassy_time::Timer;
-use heapless::String;
-use ssd1306::prelude::*;
-use {defmt_rtt as _, panic_probe as _};
-
-// Embedded Graphics
 use embedded_graphics::{
     mono_font::{MonoTextStyleBuilder, ascii::FONT_10X20},
     pixelcolor::BinaryColor,
@@ -19,9 +12,12 @@ use embedded_graphics::{
     prelude::*,
     text::{Baseline, Text},
 };
+use heapless::String;
+use ssd1306::prelude::*;
+use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
-    I2C0_IRQ => i2c::InterruptHandler<I2C0>;
+    I2C0_IRQ => i2c::InterruptHandler<peripherals::I2C0>;
 });
 
 #[embassy_executor::main]
@@ -30,9 +26,9 @@ async fn main(_spawner: Spawner) {
     let i2c0 = {
         let sda = p.PIN_16;
         let scl = p.PIN_17;
-        let mut config = I2cConfig::default();
+        let mut config = i2c::Config::default();
         config.frequency = 400_000;
-        I2c::new_async(p.I2C0, scl, sda, Irqs, config)
+        i2c::I2c::new_async(p.I2C0, scl, sda, Irqs, config)
     };
     let mut display = {
         let interface = ssd1306::I2CDisplayInterface::new(i2c0);
@@ -45,12 +41,12 @@ async fn main(_spawner: Spawner) {
         .text_color(BinaryColor::On)
         .build();
     for i in 0..=1 {
-        let mut text: String<64> = String::new();
-        defmt::expect!(write!(text, "line.{i}"));
+        let mut text: String<16> = String::new();
+        defmt::expect!(write!(text, "line.{}", i + 1));
         defmt::expect!(
             Text::with_baseline(
                 text.as_str(),
-                Point::new(0, 16 + i * 20),
+                Point::new(0, i * 20),
                 text_style,
                 Baseline::Top,
             )
