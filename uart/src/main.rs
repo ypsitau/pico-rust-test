@@ -1,27 +1,33 @@
-//! This example shows how to use UART (Universal asynchronous receiver-transmitter) in the RP2040 chip.
-//!
-//! No specific hardware is specified in this example. Only output on pin 0 is tested.
-//! The Raspberry Pi Debug Probe (https://www.raspberrypi.com/products/debug-probe/) could be used
-//! with its UART port.
-
 #![no_std]
 #![no_main]
 
 use embassy_executor::Spawner;
 use embassy_rp::uart;
+use embassy_time::Timer;
 use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
-    let config = uart::Config::default();
-    //let mut uart =
-    //    uart::Uart::new_with_rtscts_blocking(p.UART0, p.PIN_0, p.PIN_1, p.PIN_3, p.PIN_2, config);
-    let mut uart = uart::Uart::new_blocking(p.UART0, p.PIN_0, p.PIN_1, config);
-    uart.blocking_write("Hello World!\r\n".as_bytes()).unwrap();
-
+    let mut uart = {
+        let uart = p.UART0;
+        let tx = p.PIN_0;
+        let rx = p.PIN_1;
+        let config = uart::Config::default();
+        uart::Uart::new_blocking(uart, tx, rx, config)
+    };
+    defmt::unwrap!(uart.blocking_write("Hello World!\r\n".as_bytes()));
     loop {
-        uart.blocking_write("hello there!\r\n".as_bytes()).unwrap();
-        cortex_m::asm::delay(1_000_000);
+        defmt::unwrap!(uart.blocking_write("hello there!\r\n".as_bytes()));
+        Timer::after_millis(1000).await;
     }
 }
+
+#[unsafe(link_section = ".bi_entries")]
+#[used]
+pub static PICOTOOL_ENTRIES: [embassy_rp::binary_info::EntryAddr; 4] = [
+    embassy_rp::binary_info::rp_program_name!(c"your program name"),
+    embassy_rp::binary_info::rp_program_description!(c"your program description"),
+    embassy_rp::binary_info::rp_cargo_version!(),
+    embassy_rp::binary_info::rp_program_build_attribute!(),
+];
