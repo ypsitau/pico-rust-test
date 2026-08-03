@@ -3,21 +3,12 @@
 
 use embassy_executor::Spawner;
 //use embassy_rp as hal;
-use embassy_time::Timer;
-
-//Panic Handler
-use panic_probe as _;
-// Defmt Logging
 use defmt_rtt as _;
-
-// Interrupt Binding
+use embassy_rp::i2c::{Config as I2cConfig, I2c};
 use embassy_rp::peripherals::I2C0;
 use embassy_rp::{bind_interrupts, i2c};
-
-// I2C
-use embassy_rp::i2c::{Config as I2cConfig, I2c};
-
-// OLED
+use embassy_time::Timer;
+use panic_probe as _;
 use ssd1306::{I2CDisplayInterface, Ssd1306Async, prelude::*};
 
 // Embedded Graphics
