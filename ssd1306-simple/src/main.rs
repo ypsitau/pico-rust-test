@@ -2,6 +2,7 @@
 #![no_main]
 
 use core::fmt::Write;
+use defmt::expect;
 use embassy_executor::Spawner;
 use embassy_rp::{bind_interrupts, i2c, peripherals};
 use embassy_time::Timer;
@@ -35,15 +36,15 @@ async fn main(_spawner: Spawner) {
         ssd1306::Ssd1306Async::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
             .into_buffered_graphics_mode()
     };
-    defmt::expect!(display.init().await);
+    expect!(display.init().await);
     let text_style = MonoTextStyleBuilder::new()
         .font(&FONT_10X20)
         .text_color(BinaryColor::On)
         .build();
     for i in 0..=1 {
         let mut text: String<16> = String::new();
-        defmt::expect!(write!(text, "line.{}", i + 1));
-        defmt::expect!(
+        expect!(write!(text, "line.{}", i + 1));
+        expect!(
             Text::with_baseline(
                 text.as_str(),
                 Point::new(0, i * 20),
@@ -53,7 +54,7 @@ async fn main(_spawner: Spawner) {
             .draw(&mut display)
         );
     }
-    defmt::expect!(display.flush().await);
+    expect!(display.flush().await);
     loop {
         Timer::after_millis(1000).await;
     }
