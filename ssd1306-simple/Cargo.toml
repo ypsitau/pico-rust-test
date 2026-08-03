@@ -19,7 +19,11 @@ embassy-executor = { version = "0.9", features = [
 ] }
 embassy-time = { version = "0.5.0" }
 ssd1306 = { version = "0.10.0", features = ["async"] }
-embedded-graphics = "0.8.2"
+embedded-graphics = { version = "0.8.2" }
+display-interface = { version = "0.5.0", features = [
+  "defmt-03", # implements defmt::Format for DisplayError
+] }
+heapless = "0.9.3"
 
 [target.'cfg( target_arch = "arm" )'.dependencies]
 panic-probe = { version = "1", features = ["print-defmt"] }

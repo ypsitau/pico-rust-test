@@ -1,15 +1,15 @@
 #![no_std]
 #![no_main]
 
+use core::fmt::Write;
 use embassy_executor::Spawner;
-//use embassy_rp as hal;
-use defmt_rtt as _;
 use embassy_rp::i2c::{Config as I2cConfig, I2c};
 use embassy_rp::peripherals::I2C0;
 use embassy_rp::{bind_interrupts, i2c};
 use embassy_time::Timer;
-use panic_probe as _;
-use ssd1306::{I2CDisplayInterface, Ssd1306Async, prelude::*};
+use heapless::String;
+use ssd1306::prelude::*;
+use {defmt_rtt as _, panic_probe as _};
 
 // Embedded Graphics
 use embedded_graphics::{
@@ -20,12 +20,6 @@ use embedded_graphics::{
     text::{Baseline, Text},
 };
 
-// Tell the Boot ROM about our application
-//use embassy_rp::block::ImageDef;
-//#[unsafe(link_section = ".start_block")]
-//#[used]
-//pub static IMAGE_DEF: ImageDef = hal::block::ImageDef::secure_exe();
-
 bind_interrupts!(struct Irqs {
     I2C0_IRQ => i2c::InterruptHandler<I2C0>;
 });
@@ -33,47 +27,38 @@ bind_interrupts!(struct Irqs {
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
-
-    let sda = p.PIN_16;
-    let scl = p.PIN_17;
-
-    let mut i2c_config = I2cConfig::default();
-    i2c_config.frequency = 400_000; //400kHz
-
-    let i2c_bus = I2c::new_async(p.I2C0, scl, sda, Irqs, i2c_config);
-
-    let i2c_interface = I2CDisplayInterface::new(i2c_bus);
-
-    let mut display = Ssd1306Async::new(i2c_interface, DisplaySize128x64, DisplayRotation::Rotate0)
-        .into_buffered_graphics_mode();
-
-    display
-        .init()
-        .await
-        .expect("failed to initialize the display");
-
+    let i2c0 = {
+        let sda = p.PIN_16;
+        let scl = p.PIN_17;
+        let mut config = I2cConfig::default();
+        config.frequency = 400_000;
+        I2c::new_async(p.I2C0, scl, sda, Irqs, config)
+    };
+    let mut display = {
+        let interface = ssd1306::I2CDisplayInterface::new(i2c0);
+        ssd1306::Ssd1306Async::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
+            .into_buffered_graphics_mode()
+    };
+    defmt::expect!(display.init().await);
     let text_style = MonoTextStyleBuilder::new()
         .font(&FONT_10X20)
         .text_color(BinaryColor::On)
         .build();
-
-    defmt::info!("sending text to display");
-    Text::with_baseline(
-        "Hello, Rust2!",
-        Point::new(0, 16),
-        text_style,
-        Baseline::Top,
-    )
-    .draw(&mut display)
-    .expect("failed to draw text to display");
-
-    display
-        .flush()
-        .await
-        .expect("failed to flush data to display");
-
+    for i in 0..=1 {
+        let mut text: String<64> = String::new();
+        defmt::expect!(write!(text, "line.{i}"));
+        defmt::expect!(
+            Text::with_baseline(
+                text.as_str(),
+                Point::new(0, 16 + i * 20),
+                text_style,
+                Baseline::Top,
+            )
+            .draw(&mut display)
+        );
+    }
+    defmt::expect!(display.flush().await);
     loop {
-        defmt::info!("Hello, Rust!");
         Timer::after_millis(1000).await;
     }
 }
