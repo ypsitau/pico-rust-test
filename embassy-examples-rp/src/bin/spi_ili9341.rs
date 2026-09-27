@@ -1,18 +1,12 @@
-//! This example shows how to use SPI (Serial Peripheral Interface) in the RP2040 chip.
-//!
-//! Example written for a display using the ST7789 chip. Possibly the Waveshare Pico-ResTouch
-//! (https://www.waveshare.com/wiki/Pico-ResTouch-LCD-2.8)
-
 #![no_std]
 #![no_main]
 
 use core::cell::RefCell;
-
 use defmt::*;
 use embassy_embedded_hal::shared_bus::blocking::spi::SpiDeviceWithConfig;
 use embassy_rp::gpio;
 use embedded_graphics as eg;
-use eg::prelude::*;
+use embedded_graphics::prelude::*;
 use mipidsi::options::{Orientation, Rotation};
 use {defmt_rtt as _, panic_probe as _};
 
@@ -39,6 +33,10 @@ async fn main(_spawner: embassy_executor::Spawner) {
     let pin_touch_cs    = p.PIN_14;
     let _pin_touch_irq  = p.PIN_15;
 
+    static TX_BUFFER: static_cell::StaticCell<[u8; 64]> = static_cell::StaticCell::new();
+    let tx_buffer = TX_BUFFER.init_with(|| [0u8; 64]);
+
+    tx_buffer[0] = 0x90; // X position
     let spi_bus_shared = {
         let spi_bus = embassy_rp::spi::Spi::new_blocking(p.SPI1, pin_spi_clk, pin_spi_mosi, pin_spi_miso, Default::default());
         //let spi_bus = embassy_rp::spi::Spi::new(p.SPI1, clk, mosi, miso, p.DMA_CH0, p.DMA_CH1, Irqs, Default::default());
