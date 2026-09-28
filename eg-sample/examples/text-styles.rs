@@ -2,70 +2,72 @@
 //!
 //! Display a sentence of text using different styles, colors an decorations.
 
-use embedded_graphics::{
-    mono_font::{
-        ascii::{FONT_8X13, FONT_8X13_BOLD, FONT_8X13_ITALIC},
-        MonoTextStyleBuilder,
-    },
-    pixelcolor::Rgb888,
-    prelude::*,
-    text::Text,
-};
-use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay, Window};
+use embedded_graphics as eg;
+use embedded_graphics_simulator as eg_sim;
+
+fn draw_text<Display>(display: &mut Display) -> Result<(), Display::Error>
+where
+    Display: eg::draw_target::DrawTarget<Color = eg::pixelcolor::Rgb888>,
+{
+    use eg::prelude::*;
+    let character_style_normal = eg::mono_font::MonoTextStyleBuilder::new()
+        .font(&eg::mono_font::ascii::FONT_8X13).text_color(eg::pixelcolor::Rgb888::WHITE).build();
+    // First line
+    let position = Point::new(15, 15);
+    let position = {
+        eg::text::Text::new("A sentence with normal, ", position, character_style_normal).draw(display)?
+    };
+    let position = {
+        let character_style = eg::mono_font::MonoTextStyleBuilder::from(&character_style_normal)
+            .text_color(eg::pixelcolor::Rgb888::CSS_YELLOW).underline().build();
+        eg::text::Text::new("yellow underline", position, character_style).draw(display)?
+    };
+    let position = {
+        eg::text::Text::new(", ", position, character_style_normal).draw(display)?
+    };
+    let position = {
+        let character_style = eg::mono_font::MonoTextStyleBuilder::from(&character_style_normal)
+            .strikethrough_with_color(eg::pixelcolor::Rgb888::RED).build();
+        eg::text::Text::new("red strikethrough", position, character_style).draw(display)?
+    };
+    let _ = {
+        eg::text::Text::new(", ", position, character_style_normal).draw(display)?
+    };
+    // Second line
+    let position = Point::new(15, 15 + eg::mono_font::ascii::FONT_8X13.character_size.height as i32);
+    let position = {
+        let character_style = eg::mono_font::MonoTextStyleBuilder::from(&character_style_normal)
+            .font(&eg::mono_font::ascii::FONT_8X13_BOLD).build();
+        eg::text::Text::new("bold", position,
+            character_style).draw(display)?
+    };
+    let position = {
+        eg::text::Text::new(", ", position, character_style_normal).draw(display)?
+    };
+    let position = {
+        let character_style = eg::mono_font::MonoTextStyleBuilder::from(&character_style_normal)
+            .text_color(eg::pixelcolor::Rgb888::CSS_TOMATO).background_color(eg::pixelcolor::Rgb888::CSS_WHEAT).build();
+        eg::text::Text::new("highlighted", position, character_style).draw(display)?
+    };
+    let position = {
+        eg::text::Text::new(" and ", position, character_style_normal).draw(display)?
+    };
+    let position = {
+        let italic = eg::mono_font::MonoTextStyleBuilder::from(&character_style_normal)
+            .font(&eg::mono_font::ascii::FONT_8X13_ITALIC).build();
+        eg::text::Text::new("italic", position, italic).draw(display)?
+    };
+    let _ = {
+        eg::text::Text::new(" text!", position, character_style_normal).draw(display)?
+    };
+    Ok(())
+}
 
 fn main() -> Result<(), core::convert::Infallible> {
-    let mut display: SimulatorDisplay<Rgb888> = SimulatorDisplay::new(Size::new(512, 128));
-
-    let normal = MonoTextStyleBuilder::new()
-        .font(&FONT_8X13)
-        .text_color(Rgb888::WHITE)
-        .build();
-
-    let underline = MonoTextStyleBuilder::from(&normal)
-        .text_color(Rgb888::CSS_YELLOW)
-        .underline()
-        .build();
-
-    let strikethrough = MonoTextStyleBuilder::from(&normal)
-        .strikethrough_with_color(Rgb888::RED)
-        .build();
-
-    let background = MonoTextStyleBuilder::from(&normal)
-        .background_color(Rgb888::CSS_WHEAT)
-        .text_color(Rgb888::CSS_TOMATO)
-        .build();
-
-    let bold = MonoTextStyleBuilder::from(&normal)
-        .font(&FONT_8X13_BOLD)
-        .build();
-
-    let italic = MonoTextStyleBuilder::from(&normal)
-        .font(&FONT_8X13_ITALIC)
-        .build();
-
-    // First line
-    let position =
-        Text::new("A sentence with normal, ", Point::new(15, 15), normal).draw(&mut display)?;
-    let position = Text::new("yellow underline", position, underline).draw(&mut display)?;
-    let position = Text::new(", ", position, normal).draw(&mut display)?;
-    let position = Text::new("red strikethrough", position, strikethrough).draw(&mut display)?;
-    Text::new(", ", position, normal).draw(&mut display)?;
-
-    // Second line
-    let position = Text::new(
-        "bold",
-        Point::new(15, 15 + FONT_8X13.character_size.height as i32),
-        bold,
-    )
-    .draw(&mut display)?;
-    let position = Text::new(", ", position, normal).draw(&mut display)?;
-    let position = Text::new("highlighted", position, background).draw(&mut display)?;
-    let position = Text::new(" and ", position, normal).draw(&mut display)?;
-    let position = Text::new("italic", position, italic).draw(&mut display)?;
-    Text::new(" text!", position, normal).draw(&mut display)?;
-
-    let output_settings = OutputSettingsBuilder::new().scale(2).build();
-    Window::new("Text styles", &output_settings).show_static(&display);
-
+    use eg::prelude::*;
+    let mut display = eg_sim::SimulatorDisplay::<eg::pixelcolor::Rgb888>::new(Size::new(512, 128));
+    draw_text(&mut display)?;
+    let output_settings = eg_sim::OutputSettingsBuilder::new().scale(2).build();
+    eg_sim::Window::new("Text styles", &output_settings).show_static(&display);
     Ok(())
 }
