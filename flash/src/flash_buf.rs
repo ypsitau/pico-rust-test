@@ -47,7 +47,7 @@ where
     		// ----------[buf_cache]----------
     		// -----------rrrrr---------------
     		// -----------rrrrrrrrrrrr--------
-            let offset_buf = 0;
+            let mut offset_buf = 0;
             let offset_in_cache = offset_xip - self.offset_xip_cached;
             let mut bytes_rest = buf.len() as u32;
             let bytes_to_copy = core::cmp::min(bytes_rest, self.bytes_cached - offset_in_cache);
