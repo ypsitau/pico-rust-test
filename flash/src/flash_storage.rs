@@ -1,13 +1,13 @@
 use embedded_storage as es;
 
-pub struct FlashBuf<'a, Flash> {
+pub struct FlashStorage<'a, Flash> {
     flash: Flash,
     offset_xip_cached: u32,
     buf_cache: &'a mut [u8],
 }
 
 #[allow(dead_code)]
-impl<'a, Flash> FlashBuf<'a, Flash>
+impl<'a, Flash> FlashStorage<'a, Flash>
 where
     Flash: es::nor_flash::ReadNorFlash + es::nor_flash::NorFlash,
 {
@@ -104,7 +104,8 @@ where
         } else if offset_xip < self.offset_xip_cached {
             //    offset_xip
             //    |      self.offset_xip_cached
-            //    |      |
+            //    |      |   offset_xip + bytes_src
+            //    |      |   |
             // ----------[buf_cache]----------
             // ---WWWWWWWCCCCC----------------
             // ---WWWWWWWCCCCCCCCCCCWWWWWWW---
@@ -112,19 +113,12 @@ where
             let offset_src = self.offset_xip_cached - offset_xip;
             self.buf_cache.copy_from_slice(&src[offset_src as usize..(offset_src + bytes_to_copy) as usize]);
             self.flush_cache()?;
-        } else if offset_xip + bytes_src <= self.offset_xip_cached + Self::ERASE_SIZE {
+        } else if offset_xip + bytes_src > self.offset_xip_cached + Self::ERASE_SIZE {
             //           self.offset_xip_cached
-            //           | offset_xip
-            //           | |   offset_xip + bytes_src
-            //           | |   |   self.offset_xip_cached + Self::ERASE_SIZE
-            //           | |   |   |
-            // ----------[buf_cache]----------
-            // ----------- CCCCC--------------
-            let offset_in_cache = offset_xip - self.offset_xip_cached;
-            self.buf_cache[offset_in_cache as usize..(offset_in_cache + bytes_src) as usize]
-                .copy_from_slice(&src[0..bytes_src as usize]);
-            return Ok(());	// no need to flash-program
-        } else {
+            //           |  offset_xip
+            //           |  |      self.offset_xip_cached + Self::ERASE_SIZE
+            //           |  |      |  offset_xip + bytes_src
+            //           |  |      |  |
             // ----------[buf_cache]----------
             // -------------CCCCCCCCWWW-------
             let offset_in_cache = offset_xip - self.offset_xip_cached;
@@ -132,8 +126,20 @@ where
             self.buf_cache[offset_in_cache as usize..(offset_in_cache + bytes_to_copy) as usize]
                 .copy_from_slice(&src[0..bytes_to_copy as usize]);
             self.flush_cache()?;
+        } else {
+            //           self.offset_xip_cached
+            //           |  offset_xip
+            //           |  |   offset_xip + bytes_src
+            //           |  |   |  self.offset_xip_cached + Self::ERASE_SIZE
+            //           |  |   |  |
+            // ----------[buf_cache]----------
+            // -------------CCCCC-------------
+            let offset_in_cache = offset_xip - self.offset_xip_cached;
+            self.buf_cache[offset_in_cache as usize..(offset_in_cache + bytes_src) as usize]
+                .copy_from_slice(&src[0..bytes_src as usize]);
+            return Ok(());	// no need to flash-program
         }
-        let offset_xip_to_skip = self.offset_xip_cached;
+        let offset_xip_to_skip_flush = self.offset_xip_cached;
         self.offset_xip_cached = offset_xip & !(Self::ERASE_SIZE - 1);
         let mut offset_src = 0;
         let mut offset_in_cache = offset_xip - self.offset_xip_cached;
@@ -145,14 +151,14 @@ where
             let bytes_to_copy = core::cmp::min(bytes_rest, Self::ERASE_SIZE - offset_in_cache);
             self.buf_cache[offset_in_cache as usize..(offset_in_cache + bytes_to_copy) as usize]
                 .copy_from_slice(&src[offset_src as usize..(offset_src + bytes_to_copy) as usize]);
-            bytes_rest -= bytes_to_copy;
-            if bytes_rest == 0 { break; }
-            if self.offset_xip_cached != offset_xip_to_skip {
+            if self.offset_xip_cached != offset_xip_to_skip_flush {
                 self.flush_cache()?;
             }
+            bytes_rest -= bytes_to_copy;
+            if bytes_rest == 0 { break; }
+            offset_src += bytes_to_copy;
             offset_in_cache = 0;
             self.offset_xip_cached += Self::ERASE_SIZE;
-            offset_src += bytes_to_copy;
         }
         Ok(())
     }
@@ -164,19 +170,11 @@ where
     }
 }
 
-/*
-impl<'a, Flash> es::nor_flash::ErrorType for FlashBuf<'a, Flash>
+impl<'a, Flash> es::ReadStorage for FlashStorage<'a, Flash>
 where
     Flash: es::nor_flash::ReadNorFlash + es::nor_flash::NorFlash,
 {
     type Error = Flash::Error;
-}
-
-impl<'a, Flash> es::nor_flash::ReadNorFlash for FlashBuf<'a, Flash>
-where
-    Flash: es::nor_flash::ReadNorFlash + es::nor_flash::NorFlash,
-{
-	const READ_SIZE: usize = 1;
 	fn read(&mut self, offset: u32, bytes: &mut [u8]) -> Result<(), Self::Error> {
         self.read(offset, bytes)
     }
@@ -185,20 +183,11 @@ where
 	}
 }
 
-impl<'a, Flash> es::nor_flash::NorFlash for FlashBuf<'a, Flash>
+impl<'a, Flash> es::Storage for FlashStorage<'a, Flash>
 where
     Flash: es::nor_flash::ReadNorFlash + es::nor_flash::NorFlash,
 {
-    const ERASE_SIZE: usize = 1;
-    const WRITE_SIZE: usize = 1;
-
-    fn erase(&mut self, from: u32, to: u32) -> Result<(), Self::Error> {
-        self.flush_cache()?;
-        self.flash.erase(from, to)
-    }
-
     fn write(&mut self, offset: u32, bytes: &[u8]) -> Result<(), Self::Error> {
         self.write(offset, bytes)
     }
 }
-*/

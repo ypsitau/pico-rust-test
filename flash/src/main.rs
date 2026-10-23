@@ -2,7 +2,7 @@
 #![no_std]
 #![no_main]
 
-mod flash_buf;
+mod flash_storage;
 
 mod emb {
     pub use embassy_executor as executor;
